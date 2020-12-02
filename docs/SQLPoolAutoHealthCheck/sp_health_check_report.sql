@@ -1,4 +1,4 @@
-ALTER PROC dbo.[sp_health_check_report] 
+CREATE PROC dbo.[sp_health_check_report] 
             @run_type [varchar](10) /*accepted values: FULL,SCHEMA,TABLE*/
            ,@op_schema_name [varchar](100) /*schema name that will contain created tables for the report calculation*/
            ,@hc_schema_name [varchar](100) /*schema name that will be scanned for report, used only for SCHEMA and TABLE run type*/

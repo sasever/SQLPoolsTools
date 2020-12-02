@@ -12,7 +12,7 @@ Health checking and performance tuning in an Azure Synapse SQL Pools Gen 2 envir
  
 You can reach the store procedure from here:
 
-[sp_health_check_report.sql](docs/SQLPoolAutoHealthCheck/sp_health_check_report.md)
+[sp_health_check_report.sql](docs/SQLPoolAutoHealthCheck/sp_health_check_report.sql)
 
 ## Health Check Sources
 
@@ -78,7 +78,7 @@ DECLARE @op_schema_name varchar(100) = 'dbo'
 
 EXEC dbo.[sp_hcr]  @run_type  ,@op_schema_name  ,NULL ,NULL
 ```
-When the sp is called with **FULL** execution mode, all the table artifacts are created with a **_FULL_YYYYMMDD** suffix.
+When the sp is called with **FULL** execution mode, all the table artifacts are created with a **_FULL_yyyyMMdd** suffix.
 
 To call the procedure in the **SCHEMA** execution mode:
 
@@ -89,7 +89,7 @@ DECLARE @hc_schema_name varchar(100) = 'my_non_performing_schema'
 
 EXEC dbo.[sp_hcr]  @run_type  ,@op_schema_name  ,@hc_schema_name ,NULL
 ```
-When the sp is called with **SCHEMA** execution mode, all the table artifacts are created with a **_SCHEMA_YYYYMMDD** suffix.
+When the sp is called with **SCHEMA** execution mode, all the table artifacts are created with a **_SCHEMA_yyyyMMdd** suffix.
 
 To call the procedure in the **TABLE** execution mode:
 
@@ -101,7 +101,7 @@ DECLARE @hc_table_name varchar(1000) = 'my_nonperforming_table'
 
 EXEC dbo.[sp_hcr]  @run_type  ,@op_schema_name  ,@hc_schema_name ,@hc_table_name
 ```
-When the sp is called with **TABLE** execution mode, all the table artifacts are created with a **_TABLE_YYYYMMDD** suffix.
+When the sp is called with **TABLE** execution mode, all the table artifacts are created with a **_TABLE_yyyyMMdd** suffix.
 
 **Important Note:** The SP does not handle the cleanup/housekeeping of the report artifacts.
 you can add a block to clean up all artifacts except the HC_REPORT tables to the procedure, or add an additional clean up methodology.
