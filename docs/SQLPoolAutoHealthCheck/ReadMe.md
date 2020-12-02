@@ -12,7 +12,7 @@ Health checking and performance tuning in an Azure Synapse SQL Pools Gen 2 envir
  
 You can reach the store procedure from here:
 
-[sp_health_check_report.sql](docs/SQLPoolAutoHealthCheck/sp_health_check_report.sql)
+[sp_health_check_report.sql](./sp_health_check_report.sql)
 
 ## Health Check Sources
 
