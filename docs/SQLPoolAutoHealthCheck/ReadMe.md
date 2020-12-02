@@ -76,7 +76,7 @@ To call the procedure in the **FULL** execution mode:
 DECLARE @run_type varchar(10) ='FULL' /*accepted values: FULL,SCHEMA,TABLE*/
 DECLARE @op_schema_name varchar(100) = 'dbo'
 
-EXEC dbo.[sp_hcr]  @run_type  ,@op_schema_name  ,NULL ,NULL
+EXEC dbo.[sp_health_check_report]  @run_type  ,@op_schema_name  ,NULL ,NULL
 ```
 When the sp is called with **FULL** execution mode, all the table artifacts are created with a **_FULL_yyyyMMdd** suffix.
 
@@ -87,7 +87,7 @@ DECLARE @run_type varchar(10) ='SCHEMA' /*accepted values: FULL,SCHEMA,TABLE*/
 DECLARE @op_schema_name varchar(100) = 'dbo'
 DECLARE @hc_schema_name varchar(100) = 'my_non_performing_schema'
 
-EXEC dbo.[sp_hcr]  @run_type  ,@op_schema_name  ,@hc_schema_name ,NULL
+EXEC dbo.[sp_health_check_report]  @run_type  ,@op_schema_name  ,@hc_schema_name ,NULL
 ```
 When the sp is called with **SCHEMA** execution mode, all the table artifacts are created with a **_SCHEMA_yyyyMMdd** suffix.
 
@@ -99,7 +99,7 @@ DECLARE @op_schema_name varchar(100) = 'dbo'
 DECLARE @hc_schema_name varchar(100) = 'my_non_performing_tables_schema'
 DECLARE @hc_table_name varchar(1000) = 'my_nonperforming_table'
 
-EXEC dbo.[sp_hcr]  @run_type  ,@op_schema_name  ,@hc_schema_name ,@hc_table_name
+EXEC dbo.sp_health_check_report  @run_type  ,@op_schema_name  ,@hc_schema_name ,@hc_table_name
 ```
 When the sp is called with **TABLE** execution mode, all the table artifacts are created with a **_TABLE_yyyyMMdd** suffix.
 
