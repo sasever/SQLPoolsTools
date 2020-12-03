@@ -47,8 +47,6 @@ BEGIN
     IF @run_type not in ('FULL','SCHEMA','TABLE') 
     BEGIN
         DECLARE @returnMessage nVARCHAR(400) = 'The given run_type input parameter value ['+ISNULL(@run_type,'NULL')+'] is undefined'
-        PRINT 'From Print:'+@returnMessage;
-
         RAISERROR (@returnMessage,-1,-1,'sp_healthcheck'  );
     END
     ELSE
