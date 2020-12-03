@@ -59,10 +59,10 @@ To perform the analysis below Dynamic Management or Catalog Views (DMVs) from Az
 1. **HC_REPORT :** Produces a Health Check Report per table with verbal description of the table's condition. Uses all calculated Scores,Flags and other report metrics to build the suggestions.
 
 ## Execution of the Health Check 
-Heath Check store procedure has three execution mods, *FULL,SCHEMA,TABLE*
+Heath Check store procedure has three execution mods, ***FULL, SCHEMA, TABLE***
    * **FULL** Performs a Full Health Check on  all existing Table objects in SYS.TABLES DMV.
    * **SCHEMA** Performs a Full Health Check on all existing Table objects in a given SCHEMA
-   * **TABLE** Performs a  Health Check on given Table objects in a given TABLE
+   * **TABLE** Performs a  Health Check on given Table object
 
 The Input Parameters that the procedure accepts are as follows:
 * **run_type :** accepted values: FULL,SCHEMA,TABLE
