@@ -5,9 +5,9 @@ Health checking and performance tuning in an Azure Synapse SQL Pools Gen 2 envir
 1.  Understanding the scheduled ETL/ELT workflows and dependencies
 1.  Understanding the scheduled reporting workflows and dependencies
 1.  Understanding the Ad-Hoc query reporting patterns 
-1.  Understanding whether the tables are storing in a healthy way. 
+1.  Understanding whether the tables are  storing the data in a healthy way. 
  
- The Automated health check script addresses the 4th observation and provides guidance in how to solve issues founded in the tables in alignment with possible remarks on first tree observation.
+ The Automated health check script addresses the 4th observation and provides guidance in how to solve issues founded in the tables in alignment with possible remarks on first three observation.
 
  
 You can reach the store procedure from here:
