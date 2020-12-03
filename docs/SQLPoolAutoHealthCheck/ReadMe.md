@@ -37,7 +37,7 @@ To perform the analysis below Dynamic Management or Catalog Views (DMVs) from Az
 
 ## Health Check Artifacts
 
- The DMVs listed on the **Health Check Sources** section are used to calculate **7** tables containing several different metrics to identify a tables' health condition. From this 7 tables,
+ The DMVs listed on the [**Health Check Sources**](./ReadMe.md#health-check-sources) section are used to calculate **7** tables containing several different metrics to identify a tables' health condition. From these 7 tables,
  the process builds first a BASE table to merge all calculated info, then calculates, Scores, Flags, Importance Score and Verbal Report.
  
 1. **HC_TABLE_PATTERN :** Contains column type and size statistics per table 
