@@ -1,5 +1,7 @@
 CREATE PROC dbo.[sp_health_check_report] 
             @run_type [varchar](10) /*accepted values: FULL,SCHEMA,TABLE*/
+           ,@report_type [varchar](10) /*accepted values: CTAS,INSERT*/
+           ,@stage_cleanse_type [varchar](10) /*accepted values: DROP,KEEP*/
            ,@op_schema_name [varchar](100) /*schema name that will contain created tables for the report calculation*/
            ,@hc_schema_name [varchar](100) /*schema name that will be scanned for report, used only for SCHEMA and TABLE run type*/
 		   ,@hc_table_name [varchar](300)  /*table name that will be scanned for report, used only for  TABLE run type*/
@@ -44,9 +46,9 @@ BEGIN
 
     SET NOCOUNT ON
 
-    IF @run_type not in ('FULL','SCHEMA','TABLE') 
+    IF @run_type not in ('FULL','SCHEMA','TABLE') or @report_type not in ('CTAS','INSERT') or @stage_cleanse_type not in ('DROP','KEEP')
     BEGIN
-        DECLARE @returnMessage nVARCHAR(400) = 'The given run_type input parameter value ['+ISNULL(@run_type,'NULL')+'] is undefined'
+        DECLARE @returnMessage nVARCHAR(400) = 'One or more values for given input parameter config @run_type:['+ISNULL(@run_type,'NULL')+'] & @report_type:['+ISNULL(@report_type,'NULL')+'] & @stage_cleanse_type:['+ISNULL(@stage_cleanse_type,'NULL')+'] is undefined!'
         RAISERROR (@returnMessage,-1,-1,'sp_healthcheck'  );
     END
     ELSE
@@ -58,6 +60,7 @@ BEGIN
         DECLARE @queryText3 nVARCHAR(4000)
         DECLARE @queryText4 nVARCHAR(4000)
         DECLARE @queryText5 nVARCHAR(4000)
+        DECLARE @queryText6 nVARCHAR(4000)
 
         DECLARE @queryTargetTable nVARCHAR(200)
 
@@ -647,18 +650,53 @@ BEGIN
         EXEC (@queryText) 
         --/**/PRINT(char(10)+'*********************************************************************************'+char(10))
         
-        SET  @queryTargetTable = @op_schema_name+'.HC_REPORT'+@tableRunTag
-        SET  @queryText =
-            N'IF OBJECT_ID('''+@queryTargetTable+''') IS NOT NULL
-                DROP  TABLE '+@queryTargetTable+'
-            CREATE TABLE '+@queryTargetTable+'
-                WITH 
-                    (
-                        DISTRIBUTION = hash(TableName),
-                        HEAP
-                    )
-            AS	 
-            select 
+       
+        IF @report_type = 'CTAS'
+        BEGIN
+            SET  @queryTargetTable = @op_schema_name+'.HC_REPORT'+@tableRunTag
+            SET  @queryText =  					N'                    IF OBJECT_ID('''+@queryTargetTable+''') IS NOT NULL
+                    DROP  TABLE '+@queryTargetTable+'
+					CREATE TABLE '+@queryTargetTable+'
+						WITH 
+							(
+								DISTRIBUTION = hash(TableName),
+								HEAP
+							)
+					AS	 '
+        END
+        ELSE  /* @report_type = 'INSERT' */
+        BEGIN
+            SET  @queryTargetTable = @op_schema_name+'.HC_REPORT'
+            IF OBJECT_ID(@queryTargetTable) IS NULL
+               BEGIN
+                    SET  @queryText = N'                            CREATE TABLE '+@queryTargetTable+'
+                                WITH 
+                                    (   DISTRIBUTION = hash(TableName),
+                                        HEAP  )   AS '+char(10)
+                END
+            ELSE
+            BEGIN
+					SET  @queryText = N'                INSERT INTO '+@queryTargetTable+'
+					([HC_DATE], [TOTAL_ROW_COUNT], [IMPORTANCE], [REPORT_COMMENT], [OBJECT_ID], [SCHEMANAME], [TABLENAME], [FLAG_STATS_LATE]
+                    ,[FLAG_TABLE_CCI_ELIGEBILITY], [FLAG_TABLE_CCI_PARTITION_HEALTH], [FLAG_TABLE_PARTITION_ELIGEBILITY], [ROW_COUNT_PER_DISTRIBUTION_MAX]
+                    ,[ROW_COUNT_TOTAL], [SCORE_SCORE_OPEN_RG], [SCORE_TABLE_CCI_BULKLOAD_HEALTH], [SCORE_TABLE_CCI_BULKLOAD_TRIMMIMG], [SCORE_TABLE_CCI_COMPRESSED_HEALTH]
+                    ,[SCORE_DELETE], [SCORE_TABLE_CCI_DICT_HEALTH], [SCORE_TABLE_CCI_DICT_TRIMMIMG], [SCORE_TABLE_CCI_EFFICIENCY], [SCORE_TABLE_CCI_MEMORY_HEALTH]
+                    ,[SCORE_TABLE_CCI_MEMORY_TRIMMIMG], [ROWGROUP_PER_DISTRIBUTION_MAX_IDEAL], [ROWGROUP_TOTAL_MAX_IDEAL], [STORAGETYPE], [DISTRIBUTION_POLICY_DESC]
+                    ,[DISTCOL], [DISTCOL_DATATYPE], [DISTR_AVG_ROW_COUNT], [DISTR_MEDIAN_ROW_COUNT], [DISTR_MAX_AVG_SKEW], [DISTR_MAX_MED_SKEW], [DISTR_MAX_MIN_SKEW]
+                    ,[DISTR_MAX_ROW_COUNT], [DISTR_MIN_ROW_COUNT], [OPEN_ROWGROUP_COUNT], [OPEN_ROWGROUP_ROWS], [OPEN_ROWGROUP_ROWS_AVG], [OPEN_ROWGROUP_ROWS_MAX]
+                    ,[OPEN_ROWGROUP_ROWS_MIN], [CLOSED_ROWGROUP_COUNT], [CLOSED_ROWGROUP_ROWS], [CLOSED_ROWGROUP_ROWS_AVG], [CLOSED_ROWGROUP_ROWS_MAX], [CLOSED_ROWGROUP_ROWS_MIN]
+                    ,[COMPRESSED_ROWGROUP_COUNT], [COMPRESSED_ROWGROUP_ROWS], [COMPRESSED_ROWGROUP_ROWS_AVG], [COMPRESSED_ROWGROUP_ROWS_DELETED], [COMPRESSED_ROWGROUP_ROWS_MAX]
+                    ,[COMPRESSED_ROWGROUP_ROWS_MIN], [MEMORY_LIMITATION_TRIMMED_RG], [MEMORY_LIMITATION_TRIMMED_RG_AVG_SIZE], [MEMORY_LIMITATION_TRIMMED_RG_MAX_SIZE]
+                    ,[MEMORY_LIMITATION_TRIMMED_RG_MIN_SIZE], [BULKLOAD_TRIMMED_RG], [BULKLOAD_TRIMMED_RG_AVG_SIZE], [BULKLOAD_TRIMMED_RG_MAX_SIZE], [BULKLOAD_TRIMMED_RG_MIN_SIZE]
+                    ,[DICTIONARY_SIZE_TRIMMED_RG], [DICTIONARY_SIZE_TRIMMED_RG_AVG_SIZE], [DICTIONARY_SIZE_TRIMMED_RG_MAX_SIZE], [DICTIONARY_SIZE_TRIMMED_RG_MIN_SIZE]
+                    ,[NUM_OF_BIG_STRING_COLUMNS], [AVG_LENGTH_OF_BIG_STRING_COLUMNS], [NUM_OF_OTHER_BIG_COLUMNS], [NUM_OF_TOTAL_COLUMNS], [NUM_OF_DATE_COLUMNS]
+                    ,[INVISIBLE_ROWGROUP_COUNT], [INVISIBLE_ROWGROUP_ROWS], [INVISIBLE_ROWGROUP_ROWS_AVG], [INVISIBLE_ROWGROUP_ROWS_MAX], [INVISIBLE_ROWGROUP_ROWS_MIN]
+                    ,[IS_EXTERNAL], [ISPARTITIONED], [NUM_SYSTEM_PARTITIONS], [NUM_USER_PARTITIONS], [NUMROWS], [NEWEST_ACTIVE_STAT_DATE], [OLDEST_ACTIVE_STAT_DATE]
+                    ,[NUM_OF_FILTERED_STATS], [NUM_OF_USERCREATED_STATS], [NUMBER_OF_STATS]) '+char(10)
+			END
+        END
+        ----------------
+        SET  @queryText = @queryText    +'select 
             HC.HC_DATE, HC.TOTAL_ROW_COUNT , HC.IMPORTANCE
             , case when HC.STORAGETYPE =''CLUSTERED COLUMNSTORE'' 
                     then 
@@ -671,8 +709,9 @@ BEGIN
                                     +''logic. ''
                             else ''''
                         end
-                        + case when HC.FLAG_TABLE_CCI_ELIGEBILITY=0 
-                            then UPPER(HC.tablename)+'' table does not have enough records to have a successful CCI index, other indexing[storage] methodologies like HEAP or CLUSTERED INDEX (if queries hitting the table has order based window functions like LEAD, LAG, PARTITION BY, RANK etc. by indexing column candidate) ''
+                        + case when HC.FLAG_TABLE_CCI_ELIGEBILITY=0 '+char(10)
+        SET  @queryText2 =
+            N'                         then UPPER(HC.tablename)+'' table does not have enough records to have a successful CCI index, other indexing[storage] methodologies like HEAP or CLUSTERED INDEX (if queries hitting the table has order based window functions like LEAD, LAG, PARTITION BY, RANK etc. by indexing column candidate) ''
                                 +''with secondary indexes on frequently filtered columns should be implemented. ''
                                 +''REPLICATED can be a good distribution strategy for these kind of tables if they are used as DIMENSIONs and joined heavily with facts by subsequent processes or ad-hoc queries. ''
                             when HC.SCORE_TABLE_CCI_EFFICIENCY > 0.3
@@ -687,10 +726,8 @@ BEGIN
                                                 end
                                                 + '' rows per rowgroup. ''   
                                                 + case when ISNULL(hc.NUM_OF_BIG_STRING_COLUMNS,0)+ISNULL(hc.NUM_OF_OTHER_BIG_COLUMNS,0)>0
-                                                    then ''The table has '' +case when ISNULL(hc.NUM_OF_BIG_STRING_COLUMNS,0)>0 '+char(10)                                                     
-                                                                                
-            SET  @queryText2 =
-            N'                                                                               then TRIM(str(hc.NUM_OF_BIG_STRING_COLUMNS)) +'' big string columns with in average ''+TRIM(str(HC.AVG_LENGTH_OF_BIG_STRING_COLUMNS))
+                                                    then ''The table has '' +case when ISNULL(hc.NUM_OF_BIG_STRING_COLUMNS,0)>0                                                                                 
+                                                                              then TRIM(str(hc.NUM_OF_BIG_STRING_COLUMNS)) +'' big string columns with in average ''+TRIM(str(HC.AVG_LENGTH_OF_BIG_STRING_COLUMNS))
                                                                                     +'' bytes length and '' 
                                                                             else ''''
                                                                             end               
@@ -702,9 +739,10 @@ BEGIN
                                                         else ''''
                                                 end
                                             else ''''
-                                        END
+                                        END '+char(10)
                                     /*Bulkload Trimming*/
-                                    + CASE when HC.SCORE_TABLE_CCI_BULKLOAD_HEALTH > 0.3 and HC.SCORE_TABLE_CCI_BULKLOAD_TRIMMIMG > 0.1 and BULKLOAD_TRIMMED_RG> 60
+             SET  @queryText3 =
+            N'                                    + CASE when HC.SCORE_TABLE_CCI_BULKLOAD_HEALTH > 0.3 and HC.SCORE_TABLE_CCI_BULKLOAD_TRIMMIMG > 0.1 and BULKLOAD_TRIMMED_RG> 60
                                             then TRIM(str(100*HC.SCORE_TABLE_CCI_BULKLOAD_TRIMMIMG))+char(37)+'' of the compressed row groups are BULKLOAD TRIMMED in average of '' 
                                                 + case when HC.BULKLOAD_TRIMMED_RG_AVG_SIZE>1000.0 
                                                     then TRIM(STR(ROUND(HC.BULKLOAD_TRIMMED_RG_AVG_SIZE/1000.0,0)))+''K ''
@@ -720,11 +758,8 @@ BEGIN
                                                 + Case when HC.DISTR_MAX_MED_SKEW >0.1 and HC.DISTR_MAX_MIN_SKEW>0.15
                                                     THEN ''Table has ''+TRIM(STR(HC.DISTR_MAX_MIN_SKEW*100))+char(37)
                                                         +'' SKEW between MAX and MIN number of row containing distributions, SKEW can also be another reason for BULKLOAD TRIMMING''
-                                                        + case when ISNULL(HC.DISTRIBUTION_POLICY_DESC,''NONE'') =''HASH'' and lower(HC.DISTCOL_DATATYPE) not like ''%date%'' '+char(10)
-
-
-            SET  @queryText3 =
-            N'                                                                then ''If suitable changing the distribution key from ''+HC.DISTCOL+'' to another column may be considered, but for that the effect in reading workloads should be examined''
+                                                        + case when ISNULL(HC.DISTRIBUTION_POLICY_DESC,''NONE'') =''HASH'' and lower(HC.DISTCOL_DATATYPE) not like ''%date%'' 
+                                                                then ''If suitable changing the distribution key from ''+HC.DISTCOL+'' to another column may be considered, but for that the effect in reading workloads should be examined''
                                                                 when lower(ISNULL(HC.DISTCOL_DATATYPE,''none'')) like ''%date%'' 
                                                                 then ''the distribution column ''+HC.DISTCOL+'' is in type ''+upper(HC.DISTCOL_DATATYPE)+'' which is  not adviced at all. ''+upper(HC.DISTCOL_DATATYPE)+'' type columns cause usually skew and and data layout imbalance.''
                                                                     +''Change the distiribution column to a suitable ID column, which is used in joins reading the table. You can use ''+HC.DISTCOL+'' as partitioning column if data size is suitable and data is received in an  incremental pattern by this column.''
@@ -734,9 +769,9 @@ BEGIN
                                                             else ''''
                                                 end
                                             else ''''
-                                    end
+                                    end' +char(10)
                                     /*Memory Trimming*/
-                                    + CASE when HC.SCORE_TABLE_CCI_MEMORY_HEALTH > 0.3 and HC.SCORE_TABLE_CCI_MEMORY_TRIMMIMG > 0.1
+            SET  @queryText4 = N'                                   + CASE when HC.SCORE_TABLE_CCI_MEMORY_HEALTH > 0.3 and HC.SCORE_TABLE_CCI_MEMORY_TRIMMIMG > 0.1
                                             then TRIM(str(100*HC.SCORE_TABLE_CCI_MEMORY_TRIMMIMG))+char(37)+'' of the compressed row groups are MEMORY TRIMMED in average of '' 
                                                 + case when HC.MEMORY_LIMITATION_TRIMMED_RG_AVG_SIZE>1000.0 
                                                     then TRIM(STR(ROUND(HC.MEMORY_LIMITATION_TRIMMED_RG_AVG_SIZE/1000.0,0)))+''K ''
@@ -755,10 +790,8 @@ BEGIN
                                     + CASE when ISNULL(HC.DISTRIBUTION_POLICY_DESC,''NONE'') = ''ROUND_ROBIN'' 
                                         then ''Detect a suitable distribution key resulting less then 10% MAX-MEDIAN/AVG SKEW which is used in joins reading the table or in alignment with the tables sourcing this table, and change the distribution methodology to HASH.'' 
                                         else ''''
-                                    end '+char(10)
-
-            SET  @queryText4 =
-            N'                                WHEN ISNULL(HC.DISTRIBUTION_POLICY_DESC,''NONE'') = ''ROUND_ROBIN'' and HC.FLAG_TABLE_CCI_ELIGEBILITY=1
+                                    end 
+                                WHEN ISNULL(HC.DISTRIBUTION_POLICY_DESC,''NONE'') = ''ROUND_ROBIN'' and HC.FLAG_TABLE_CCI_ELIGEBILITY=1
                                 then ''Detect a suitable distribution key resulting less then 10% MAX-MEDIAN/AVG SKEW which is used in joins reading the table or in alignment with the tables sourcing this table, and change the distribution methodology to HASH.'' 
                                 WHEN HC.FLAG_TABLE_PARTITION_ELIGEBILITY=1 
                                 then ''Data size is suitable for implementing partitioning column if the data is received in an incremental pattern by a DATE type family column. By implementing incremental load with PARTITION SWITCHING, LOAD times can be dramatically improved. ''
@@ -768,8 +801,9 @@ BEGIN
                     then
                         case  when HC.FLAG_TABLE_CCI_ELIGEBILITY=1 and  ISNULL(HC.DISTRIBUTION_POLICY_DESC,''NONE'') = ''ROUND_ROBIN''          
                                 then ''Convert the table strorage [primary indexing] to CCI if the table is read by subsequent processes and/or scheduled /ad-hoc reports & queries.''
-                                +''Detect a suitable distribution key resulting less then 10% MAX-MEDIAN/AVG SKEW, which is used in JOINs reading the table or in alignment with the tables sourcing this table, and change the distribution methodology to HASH.''
-                            when HC.FLAG_TABLE_CCI_ELIGEBILITY=1 and  ISNULL(HC.DISTRIBUTION_POLICY_DESC,''NONE'') = ''HASH'' 
+                                +''Detect a suitable distribution key resulting less then 10% MAX-MEDIAN/AVG SKEW, which is used in JOINs reading the table or in alignment with the tables sourcing this table, and change the distribution methodology to HASH.'' '+char(10)
+            SET  @queryText5 =
+            N'                            when HC.FLAG_TABLE_CCI_ELIGEBILITY=1 and  ISNULL(HC.DISTRIBUTION_POLICY_DESC,''NONE'') = ''HASH'' 
                             then ''Convert the table strorage [primary indexing] to CCI with the same or a more suitable HASH key, if the table is read by subsequent processes and/or scheduled/ad-hoc reports & queries.''
                             else ''''
                         end 
@@ -787,11 +821,8 @@ BEGIN
                 end
                 + case when HC.FLAG_STATS_LATE = 1 
                     THEN ''Table has ''+TRIM(STR(HC.DISTR_MAX_MIN_SKEW*100))+char(37) +'' MAX_MIN_SKEW between MAX and MIN number of row containing distributions and ''+TRIM(STR(HC.DISTR_MAX_MED_SKEW*100))+char(37) 
-                        +'' MAX_MEDIAN_SKEW between MAX and MEDIAN number of row containing distributions. '' '+char(10)
-
-
-            SET  @queryText5 =
-            N'                        +''This means any query running on this table waits for the MAX row containing distribution to finish approximately ''+TRIM(STR(HC.DISTR_MAX_MED_SKEW*100))+char(37)+'' longer, although around more than 50% of the distributions have already finished.'' 
+                        +'' MAX_MEDIAN_SKEW between MAX and MEDIAN number of row containing distributions. '' 
+                        +''This means any query running on this table waits for the MAX row containing distribution to finish approximately ''+TRIM(STR(HC.DISTR_MAX_MED_SKEW*100))+char(37)+'' longer, although around more than 50% of the distributions have already finished.'' 
                     else ''''
                 end
                 + case when  HC.SCORE_DELETE >0 
@@ -802,8 +833,9 @@ BEGIN
                             end
                             +''logic with using JOINS to substiture UPDATES and DELETES to prevent DELETE BITMAP growth.  ''
                     else ''''
-                end     as REPORT_COMMENT
-            , HC.OBJECT_ID,  HC.SCHEMANAME, HC.TABLENAME
+                end     as REPORT_COMMENT '+char(10)
+            SET  @queryText6 =
+            N'            , HC.OBJECT_ID,  HC.SCHEMANAME, HC.TABLENAME
             , HC.FLAG_STATS_LATE, HC.FLAG_TABLE_CCI_ELIGEBILITY, HC.FLAG_TABLE_CCI_PARTITION_HEALTH,HC.FLAG_TABLE_PARTITION_ELIGEBILITY
             , HC.ROW_COUNT_PER_DISTRIBUTION_MAX , HC.ROW_COUNT_TOTAL , HC.SCORE_SCORE_OPEN_RG, HC.SCORE_TABLE_CCI_BULKLOAD_HEALTH, HC.SCORE_TABLE_CCI_BULKLOAD_TRIMMIMG
             , HC.SCORE_TABLE_CCI_COMPRESSED_HEALTH, HC.SCORE_DELETE, HC.SCORE_TABLE_CCI_DICT_HEALTH, HC.SCORE_TABLE_CCI_DICT_TRIMMIMG, HC.SCORE_TABLE_CCI_EFFICIENCY
@@ -826,8 +858,68 @@ BEGIN
 		--/**/PRINT(@queryText2)  
 		--/**/PRINT(@queryText3)
 		--/**/PRINT(@queryText4)  
-        --/**/PRINT(@queryText5)  
-        EXEC (@queryText + @queryText2 + @queryText3 + @queryText4 + @queryText5) 
+        --/**/PRINT(@queryText5)
+        --/**/PRINT(@queryText6)
+        EXEC (@queryText + @queryText2 + @queryText3 + @queryText4 + @queryText5 + @queryText6) 
 --**********************************************************************
-    END        
+-- Below code drops staging tables.
+-- 
+--**********************************************************************
+        IF  @stage_cleanse_type ='DROP'
+        BEGIN
+            SET  @queryTargetTable = @op_schema_name+'.HC_TABLE_PATTERN'+@tableRunTag
+            SET  @queryText =
+                N'IF OBJECT_ID('''+@queryTargetTable+''') IS NOT NULL
+                    DROP  TABLE '+@queryTargetTable
+            EXEC (@queryText)
+            ---------------------
+            SET  @queryTargetTable = @op_schema_name+'.HC_COLUMN_STORE_DENSITY'+@tableRunTag
+            SET  @queryText =
+                N'IF OBJECT_ID('''+@queryTargetTable+''') IS NOT NULL
+                    DROP  TABLE '+@queryTargetTable
+            EXEC (@queryText)
+            ---------------------
+            SET  @queryTargetTable = @op_schema_name+'.HC_GENERAL_ROWGROUP_HEALTH'+@tableRunTag
+            SET  @queryText =
+                N'IF OBJECT_ID('''+@queryTargetTable+''') IS NOT NULL
+                    DROP  TABLE '+@queryTargetTable
+            EXEC (@queryText)
+            ---------------------
+            SET  @queryTargetTable = @op_schema_name+'.HC_DISTRIBUTION_LAYOUT'+@tableRunTag
+            SET  @queryText =
+                N'IF OBJECT_ID('''+@queryTargetTable+''') IS NOT NULL
+                    DROP  TABLE '+@queryTargetTable
+            EXEC (@queryText)
+            ---------------------
+            SET  @queryTargetTable = @op_schema_name+'.HC_DISTRIBUTION_SKEW_INFO'+@tableRunTag
+            SET  @queryText =
+                N'IF OBJECT_ID('''+@queryTargetTable+''') IS NOT NULL
+                    DROP  TABLE '+@queryTargetTable
+            EXEC (@queryText)
+            ---------------------
+            SET  @queryTargetTable = @op_schema_name+'.HC_TABLE_STATS_INFO'+@tableRunTag
+            SET  @queryText =
+                N'IF OBJECT_ID('''+@queryTargetTable+''') IS NOT NULL
+                    DROP  TABLE '+@queryTargetTable
+            EXEC (@queryText)
+            ---------------------
+            SET  @queryTargetTable = @op_schema_name+'.HC_BASE'+@tableRunTag
+            SET  @queryText =
+                N'IF OBJECT_ID('''+@queryTargetTable+''') IS NOT NULL
+                    DROP  TABLE '+@queryTargetTable
+            EXEC (@queryText)
+            ---------------------
+            SET  @queryTargetTable = @op_schema_name+'.HC_SCORES_FLAGS'+@tableRunTag
+            SET  @queryText =
+                N'IF OBJECT_ID('''+@queryTargetTable+''') IS NOT NULL
+                    DROP  TABLE '+@queryTargetTable
+            EXEC (@queryText)
+            ---------------------
+            SET  @queryTargetTable = @op_schema_name+'.HC_WITH_IMPORTANCE'+@tableRunTag
+            SET  @queryText =
+                N'IF OBJECT_ID('''+@queryTargetTable+''') IS NOT NULL
+                    DROP  TABLE '+@queryTargetTable
+            EXEC (@queryText)
+        END 
+    END       
 END

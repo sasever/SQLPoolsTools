@@ -59,13 +59,23 @@ To perform the analysis below Dynamic Management or Catalog Views (DMVs) from Az
 1. **HC_REPORT :** Produces a Health Check Report per table with verbal description of the table's condition. Uses all calculated Scores,Flags and other report metrics to build the suggestions.
 
 ## Execution of the Health Check 
-Heath Check store procedure has three execution mods, ***FULL, SCHEMA, TABLE***
+Heath Check store procedure has three execution mods, ***FULL, SCHEMA, TABLE*** controlled by **@run_type** input parameter
    * **FULL** Performs a Full Health Check on  all existing Table objects in SYS.TABLES DMV.
    * **SCHEMA** Performs a Full Health Check on all existing Table objects in a given SCHEMA
    * **TABLE** Performs a  Health Check on given Table object
 
+You can control whether you want a new REPORT table to be created for the execution or use an existing one by **report_type** input parameter
+   * **CTAS** Performs a Full Health Check on  all existing Table objects in SYS.TABLES DMV.
+   * **INSERT** Performs a Full Health Check on all existing Table objects in a given SCHEMA
+
+You can control whether you want the staging tables created for the report calculation process to be dropped or not by **stage_cleanse_type** input parameter
+   * **DROP** Drops the staging tables after the execution 
+   * **KEEP** Keeps the staging tables after the execution 
+
 The Input Parameters that the procedure accepts are as follows:
 * **run_type :** accepted values: FULL,SCHEMA,TABLE
+* **report_type :**  accepted values: CTAS,INSERT
+* **stage_cleanse_type :** accepted values: DROP,KEEP
 * **op_schema_name :** schema name that will contain created tables for the report calculation
 * **hc_schema_name :** schema name that will be scanned for report, used only for SCHEMA and TABLE run type
 * **hc_table_name :** table name that will be scanned for report, used only for  TABLE run type
@@ -74,20 +84,25 @@ To call the procedure in the **FULL** execution mode:
 
 ```sql
 DECLARE @run_type varchar(10) ='FULL' /*accepted values: FULL,SCHEMA,TABLE*/
+DECLARE @report_type [varchar](10) = 'INSERT' /*accepted values: CTAS,INSERT*/
+DECLARE @stage_cleanse_type [varchar](10) = 'DROP'/*accepted values: DROP,KEEP*/
 DECLARE @op_schema_name varchar(100) = 'dbo'
 
-EXEC dbo.[sp_health_check_report]  @run_type  ,@op_schema_name  ,NULL ,NULL
+EXEC dbo.[sp_health_check_report]  @run_type, @report_type, @stage_cleanse_type, @op_schema_name, NULL, NULL
 ```
-When the sp is called with **FULL** execution mode, all the table artifacts are created with a **_FULL_yyyyMMdd** suffix.
+When the sp is called with **FULL** run type and **CTAS** report type, all the table artifacts are created with a **_FULL_yyyyMMdd** suffix.
+When the sp is called with **FULL** run type and **INSERT** report type, staging the table artifacts are created with a **_FULL_yyyyMMdd** suffix, final report table, if it does not exists or it is the first execution, will be created as **HC_REPORT**, and next executions with INSERT will insert to this table.
 
 To call the procedure in the **SCHEMA** execution mode:
 
 ```sql
 DECLARE @run_type varchar(10) ='SCHEMA' /*accepted values: FULL,SCHEMA,TABLE*/
+DECLARE @report_type [varchar](10) = 'CTAS' /*accepted values: CTAS,INSERT*/
+DECLARE @stage_cleanse_type [varchar](10) = 'DROP'/*accepted values: DROP,KEEP*/
 DECLARE @op_schema_name varchar(100) = 'dbo'
 DECLARE @hc_schema_name varchar(100) = 'my_non_performing_schema'
 
-EXEC dbo.[sp_health_check_report]  @run_type  ,@op_schema_name  ,@hc_schema_name ,NULL
+EXEC dbo.[sp_health_check_report]  @run_type, @report_type, @stage_cleanse_type, @op_schema_name, @hc_schema_name, NULL
 ```
 When the sp is called with **SCHEMA** execution mode, all the table artifacts are created with a **_SCHEMA_yyyyMMdd** suffix.
 
@@ -95,11 +110,13 @@ To call the procedure in the **TABLE** execution mode:
 
 ```sql
 DECLARE @run_type varchar(10) ='TABLE' /*accepted values: FULL,SCHEMA,TABLE*/
+DECLARE @report_type [varchar](10) = 'CTAS' /*accepted values: CTAS,INSERT*/
+DECLARE @stage_cleanse_type [varchar](10) = 'DROP'/*accepted values: DROP,KEEP*/
 DECLARE @op_schema_name varchar(100) = 'dbo'
 DECLARE @hc_schema_name varchar(100) = 'my_non_performing_tables_schema'
 DECLARE @hc_table_name varchar(1000) = 'my_nonperforming_table'
 
-EXEC dbo.sp_health_check_report  @run_type  ,@op_schema_name  ,@hc_schema_name ,@hc_table_name
+EXEC dbo.sp_health_check_report  @run_type, @report_type, @stage_cleanse_type, @op_schema_name, @hc_schema_name, @hc_table_name
 ```
 When the sp is called with **TABLE** execution mode, all the table artifacts are created with a **_TABLE_yyyyMMdd** suffix.
 
