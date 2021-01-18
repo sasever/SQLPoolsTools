@@ -5,7 +5,7 @@ We need to design our partitioning schema on one simple fact, which is :["A heal
 
 If we have a very evenly distributed table, which has around same number of rows per each of its 60 distributions, to understand whether the table is suitable for partitioning, we should estimate the size of each partition portion row size per distribution  and have it be more than 1 Million rows, as shared in the [best practices guideline of Azure Synapse SQL Pools Partitioning Documentation](https://docs.microsoft.com/en-us/azure/synapse-analytics/sql/develop-best-practices#do-not-over-partition)
 
-In below figure illustrates how a partitioned table stores its partitions in distributions. For a specific table every distribution may have a portion of the partition data. If the partition data for that specific distribution is not close to 1 million rows, the row group quality for that partition will be lower.
+Below figure illustrates how a partitioned table stores its partitions in distributions. For a specific table every distribution may have a portion of the partition data. If the partition data for that specific distribution is not close to 1 million rows, the row group quality for that partition will be lower.
 
 [![Partitioning and columnstore](./media/partitioning.JPG "Figure 1 Partitioning and columnstore in Azure Synapse SQL Pools")](#)
 
