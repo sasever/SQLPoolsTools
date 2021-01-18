@@ -1,7 +1,5 @@
-
-# this page is  under progress
 # Performance Tuning on Azure Synapse SQL Pools
-*Individual Health Check Scrips and Guidance for Manual Health Checking Synapse Sql Pools Tables*
+*Individual Health Check Scrips and Guidance for Manual Health Checking Azure Synapse Sql Pools Tables*
 
 Performance tuning on any data processing platform may easily become rearranging deck chairs on the Titanic, if you do not focus on the correct issues. You need to aim and put effort for the work which brings the most outcome. For example,
 
@@ -13,10 +11,10 @@ The effect of which one you will put an effort will obviously different.
 ## How to approach Performance Tuning on Azure Synapse SQL Pools.
 If you have a poor performing read query or poor performing write operation on Azure Synapse SQL Pools, there might be a few different reasons resulting it. But solutions usually are hidden in how healthily your tables are placed in the system and how you are reading/writing these tables.
 
-Azure Synapse SQL Pools, gains its strength in fast query performance first from the [MPP architecture](https://docs.microsoft.com/en-us/azure/synapse-analytics/sql/overview-architecture) and [Compressed ColumnStore index (CCI)](https://docs.microsoft.com/en-us/sql/relational-databases/indexes/columnstore-indexes-overview?toc=/azure/synapse-analytics/toc.json&bc=/azure/synapse-analytics/breadcrumb/toc.json&view=azure-sqldw-latest&preserve-view=true) storage technology and the usage of [CCI best practices](https://docs.microsoft.com/en-us/azure/synapse-analytics/sql/data-load-columnstore-compression). 
+Azure Synapse SQL Pools, gains its strength in fast query performance first from the [MPP architecture](https://docs.microsoft.com/en-us/azure/synapse-analytics/sql/overview-architecture) and second from [Compressed ColumnStore index (CCI)](https://docs.microsoft.com/en-us/sql/relational-databases/indexes/columnstore-indexes-overview?toc=/azure/synapse-analytics/toc.json&bc=/azure/synapse-analytics/breadcrumb/toc.json&view=azure-sqldw-latest&preserve-view=true) storage technology and the usage of [CCI best practices](https://docs.microsoft.com/en-us/azure/synapse-analytics/sql/data-load-columnstore-compression). 
 
-### Analyzing  Read Performance
-#### Checking the Execution
+### 1. Analyzing  Read Performance
+### 1.1. Checking the Execution
 When analyzing read performance for a specific query you should first understand what operation(s) in query processing causes you how much time.
 You can get this information by combining two DMV's, [SYS.DM_PDW_EXEC_REQUESTS](https://docs.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/sys-dm-pdw-exec-requests-transact-sql?view=azure-sqldw-latest) and [SYS.DM_PDW_REQUEST_STEPS](https://docs.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/sys-dm-pdw-request-steps-transact-sql?view=azure-sqldw-latest).
 
@@ -79,7 +77,7 @@ After you identify long running steps, check whether they are one of the below:
 
 If you see one or multiple of above operations this means you need to look at how the tables joined or filtered in the query are distributed. 
 
-#### Checking the Distribution Layout
+###  1.2. Checking the Distribution Layout
 Below query can help you in understanding the distribution layout as an overview.
 
 ```sql
@@ -146,9 +144,9 @@ WHERE
 
 ***How to evaluate the output of above query:** This query provides you the information about the table distribution lay-out. Check whether one of the tables are external, check whether the two tables getting joined are distributed with the join key, whether the data type, length precision scale are same for the join key. Check whether the tables are round robin distributed, Check the number of rows for each table and see whether you have  less than 60M row tables getting broadcasted that takes too much time. Also StorageType is another important identifier, if your Table has way more than 60M rows and it is not stored as Clustered Columnstore Index, the query performance is normal to be low.*
 
-If everything seems perfect by lay out, then you may either have the data distributed unevenly distributions and the session is waiting for more data containing distributions, or if the data is stored as Clustered Columnstore Index, the Row Group quality may be low.
+If everything seems perfect by lay out, then you may either have the data distributed unevenly in the distributions and the session is waiting for the more data containing distributions to finish, or if the data is stored as Clustered Columnstore Index, the Row Group quality may be low.
 
-#### Checking the Distribution Data Skew
+###  1.3. Checking the Distribution Data Skew
 Data being distributed unevenly within distributions is an important problem. If your data is less than 60M it may be normal to have uneven distribution but still may require to be handled, for example by changing the distribution methodology. The bigger your tables get, the more it will be important for the data to be distributed as even as possible. With below script you can check the skew. Script provides information about skew between MAXIMUM number containing distributution and MEDIAN of the distribution row count as DISTR_max_med_skew, between MAXIMUM number containing distributution and AVERAGE of the distribution row count as DISTR_max_avg_skew, between MAXIMUM number containing distributution and MINIMUM of the distribution row count as DISTR_max_min_skew.
 
 
@@ -207,7 +205,7 @@ INNER JOIN sys.pdw_distributions di
 INNER JOIN sys.dm_pdw_nodes_db_partition_stats nps
     ON nt.[object_id] = nps.[object_id]
     AND nt.[pdw_node_id] = nps.[pdw_node_id]
-    AND i.[index_id] = nps.[index_id]				  
+    AND i.[index_id] = nps.[index_id]
     AND nt.[distribution_id] = nps.[distribution_id]
 LEFT OUTER JOIN (select * from sys.pdw_column_distribution_properties where distribution_ordinal = 1) cdp
     ON t.[object_id] = cdp.[object_id]
@@ -245,7 +243,7 @@ SELECT
  ,PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY [approx_row_count])  OVER (PARTITION BY object_id) AS DISTR_median_row_count
 FROM base
 )
-select s.object_id,s.schemaname, s.	tablename, 
+select s.object_id,s.schemaname, s.tablename, 
 	DISTR_max_row_count,DISTR_min_row_count,DISTR_avg_row_count,DISTR_median_row_count,
     case when isnull(DISTR_max_row_count,0)>0 then (DISTR_max_row_count * 1.00 - DISTR_min_row_count * 1.00) /DISTR_max_row_count * 1.00  else -1 end AS DISTR_max_min_skew,
 	case when isnull(DISTR_max_row_count,0)>0 then(DISTR_max_row_count * 1.00 - DISTR_avg_row_count * 1.00) / DISTR_max_row_count * 1.00  else -1 end AS DISTR_max_avg_skew,
@@ -256,7 +254,7 @@ SELECT object_id,schemaname,
 	DISTR_median_row_count, 
 	MAX([approx_row_count]) as DISTR_max_row_count,
 	MIN([approx_row_count]) as DISTR_min_row_count,
-	AVG([approx_row_count]) as DISTR_avg_row_count	
+	AVG([approx_row_count]) as DISTR_avg_row_count
 FROM size
 WHERE 1=1
   and table_name  in ('MYTABLENAME')
@@ -265,9 +263,9 @@ GROUP BY object_id,schemaname,
 ```
 ***How to evaluate the output of above query:** If there is a way more than 10% Skew for all three metrics then you should be reconsidering how the tables are distributed. Unless DISTR_max_min_skew is 1, which means that at least 1 distribution doesn't have any rows for this table, DISTR_max_med_skew being high has more priority, because this can cause longer processing times  although more than half of the distributions has already done their jobs*
 
-#### Checking the Compressed Columnstore Index Row Groups
+###  1.4. Checking the Compressed Columnstore Index Row Groups
 
-1. **Checking the Compressed Columnstore Index Row Group Status**
+**1.4.1. Checking the Compressed Columnstore Index Row Group Status**
 
 Below query helps you to understand some essential [Compressed Columnstore Index health criterions](https://docs.microsoft.com/en-us/azure/synapse-analytics/sql/data-load-columnstore-compression). You can find the answers of how many compressed and open row groups the table has, what is the maximum ideal number of compressed row groups.
 
@@ -308,13 +306,14 @@ GROUP BY t.object_id, s.[name], t.[name];
 
 *If COMPRESSED_rowgroup_count is too big comparing to rowgroup_count_MAX_IDEAL, this means there are some health issues in how the row groups are build. For that case the health of row groups should also be checked.*
 
-2. **Checking the Compressed Columnstore Index Row Group Health**
+**1.4.2. Checking the Compressed Columnstore Index Row Group Health**
+
 Ideally an Azure Synapse SQL pools Table, which is stored as Compressed Columnstore Index, we want each compressed row group to have 1 million rows. If I should share an exact number, it should be [1,048,576](https://docs.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-memory-optimizations-for-columnstore-compression#target-size-for-rowgroups)
 
 When a Compressed row group has less than 1,048,576  rows, it gets marked as 'TRIMMED'. [The following trim reasons indicate  trimming of the rowgroup:](https://docs.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-memory-optimizations-for-columnstore-compression#how-to-monitor-rowgroup-quality
 )
 
-* **BULKLOAD:** Incoming batch of rows for the load for that distribution had less than or not as exact multiples of 1 million rows. 
+* **BULKLOAD:** Incoming batch of rows for the load for that distribution had less than or not as exact multiples of 1 million and greater than 50K rows. 
 * **MEMORY_LIMITATION:** Memory of the loading session is less than the required working memory for compressing 1 million rows of that table.
 * **DICTIONARY_SIZE:** There is at least one string column with wide and/or high cardinality strings that causes the maximum dictionary size which is is limited to 16 MB, to get filled before the rowgroup reaches to 1 million rows.
 
@@ -338,6 +337,8 @@ with base as(
 	JOIN sys.[dm_pdw_nodes_db_column_store_row_group_physical_stats] rg ON rg.[object_id] = nt.[object_id]
 	 AND rg.[pdw_node_id] = nt.[pdw_node_id]
 	 AND rg.[distribution_id] = nt.[distribution_id]
+     AND tb.name = 'MYTABLENAME'
+     AND sm.name = 'MYTABLEsSCHEMA'
 )
 select 
     object_id,
@@ -357,8 +358,67 @@ select
     avg( case when trim_reason_desc='MEMORY_LIMITATION' then [total_rows] end)MEMORY_LIMITATION_Trimmed_RG_avg_size
 from base  group by object_id,tablename,schemaname;
 ```
+***How to evaluate the output of above query:** If your row groups are trimmed with one or many of the above reasons, and the AVG number of rows and MIN number of rows per trimmed rowgroup is very low comparing to 1 million
+you should check the recommendations [here](https://docs.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-memory-optimizations-for-columnstore-compression). If BULKLOAD or  MEMORY_LIMITATION are the only or main trimming reasons you may first try to recreate the table or a copy of a table wih a CTAS(CREATE TABLE AS SELECT) statement with a better [resource class](https://docs.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/resource-classes-for-workload-management) if MEMORY_LIMITATION especially exists. Control the latest health condition and retry the slow query to see the result.* 
 
-The engine will create compressed row groups if there are greater than 100,000 rows being inserted (as opposed to inserting into the delta store) but sets the trim reason to BULKLOAD. In this scenario, consider increasing your batch load to include more rows. Also, reevaluate your partitioning scheme to ensure it's not too granular as row groups can't span partition boundaries.
+*If the main trimming reason is DICTIONARY_SIZE there is  at least one very high cardinality and/or very big sized character or big numeric/date column. Check unnecessarily big columns try to reduce them. You may check whether it is worth the effort by creating a copy of the table without the candidate columns and trying the slow query to see the result.*
+
+You can use below query to check the columns of the table(s) you are interested.
+
+```sql
+select s.name schemaname
+      ,t.name as tablename
+	  ,c.name as columnname
+	  ,c.column_id as columnId
+	  ,ty.name as typename
+      CASE WHEN c.max_length>=30 THEN 'YES' ELSE 'NO' END as tooLongColumn
+	  ,c.max_length  
+	  ,c.precision
+	  ,c.scale
+	  ,c.is_nullable
+	  ,c.collation_name
+from sys.schemas s 
+join sys.tables t       on s.schema_id=t.schema_id
+join sys.all_columns c  on t.object_id=c.object_id
+join [sys].[types] ty   on ty.system_type_id=c.system_type_id
+where  t.name = 'MYTABLENAME'
+  and  s.name ='MYTABLEsSCHEMANAME'
+  and  TY.name != 'sysname'
+order by t.name,c.name,c.max_length;
+```
+
+The engine will create compressed row groups if there are greater than 50,000 rows being inserted (as opposed to inserting into the delta store) but sets the trim reason to BULKLOAD. In this scenario, consider increasing your batch load to include more rows. Also, reevaluate your partitioning scheme to ensure it's not too granular as row groups can't span partition boundaries. You can check [Partition Implementation Samples](docs/SQLPoolPartitioning/ReadMe.md) for a sample guideline and [Azure Synapse analytics Partitioning Documentation](https://docs.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-partition) for deeper information
 
 
-# this page is  under progress
+### 1.5. Checking whether the statistics are up to date
+
+Everything about your tables may be perfect, but the Optimizer may not be aware about it and act differently,build an improper plan, if the statistics of your table are not up to date. Creating the correct statistics for different workloads are also as important as having overall statistics. If your tables are used by subsequent processes to produce other outputs/tables during your ETL/ELT, maintaining all necessary statistics after every major change on your tables is a good practice to follow. you can find detailed information on [how to create statistics here](https://docs.microsoft.com/en-us/azure/synapse-analytics/sql/develop-tables-statistics) in Microsoft Azure Synapse documentation.
+
+```sql
+WITH STATS
+AS
+(
+SELECT TB.OBJECT_ID,
+       sm.[name] AS [schemaname], 
+	   tb.[name] AS [tablename], 
+	   st.[name] AS [stats_name], 
+	   st.[has_filter] AS [stats_is_filtered], 
+	   STATS_DATE(st.[object_id], st.[stats_id]) AS [stats_last_updated_date], 
+	   st.[user_created] 
+FROM sys.objects AS ob
+	 JOIN sys.stats AS st ON ob.[object_id] = st.[object_id] 
+	 JOIN sys.tables AS tb ON st.[object_id] = tb.[object_id]
+	 JOIN sys.schemas AS sm ON tb.[schema_id] = sm.[schema_id]
+WHERE 1 = 1 AND 
+	  STATS_DATE(st.[object_id], st.[stats_id]) IS NOT NULL )
+select OBJECT_ID,[schemaname],[tablename]
+	  ,max([stats_last_updated_date]) newest_active_stat_date
+	  ,min([stats_last_updated_date]) oldest_active_stat_date
+	  ,count(*) number_of_stats 
+	  ,SUM(cast([user_created] as int)) NUM_OF_USERCREATED_STATS
+	  ,SUM(cast([stats_is_filtered] as int)) NUM_OF_FILTERED_STATS
+from STATS
+group by  OBJECT_ID,[schemaname],[tablename]
+```
+
+These checks can be used all together or individually to examine performance problems. An automated and merged version is provided [here](docs/SQLPoolAutoHealthCheck/ReadMe.md) in this repository.
