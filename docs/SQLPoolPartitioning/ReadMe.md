@@ -7,7 +7,7 @@ If we have a very evenly distributed table, which has around same number of rows
 
 In below figure illustrates how a partitioned table stores its partitions in distributions. For a specific table every distribution may have a portion of the partition data. If the partition data for that specific distribution is not close to 1 million rows, the row group quality for that partition will be lower.
 
-[![Partitioning and columnstore](./docs/SQLPoolPartitioning/media/partitioning.JPG "Figure 1 Partitioning and columnstore in Azure Synapse SQL Pools")](#)
+[![Partitioning and columnstore](./media/partitioning.JPG "Figure 1 Partitioning and columnstore in Azure Synapse SQL Pools")](#)
 
 
 Therefore understanding/estimating how your data distributes by distribution and partition key is the number one step for examining partitioning options.
@@ -79,13 +79,13 @@ Below you can see the output of the Quarterly examination query:
 
 *It can be seen that only 2004Q1,2004Q2,2003Q3 future partitions highlighted with yellow has enough data to have relatively healthy compressed  row groups. But 2003Q2 and earlier data should not be designed as individual partitions but more of a merging approach should be used unless we do not have any technical reasons requiring us to do that.For 2004Q3 we assume that more future data will come. And a later in this document will be explained kind of logic will be implemented to maintain health compressed rowgroups.*
 
-[![ Partitioning sample output for "Quarterly" examination](./docs/SQLPoolPartitioning/media/QuarterlyResults.JPG "Figure 2 Partitioning sample output for Quarterly examination")](#)
+[![ Partitioning sample output for "Quarterly" examination](./media/QuarterlyResults.JPG "Figure 2 Partitioning sample output for Quarterly examination")](#)
 
 
 Below you can see the output of the Yearly examination query:
 
 *It can be seen that only 2004,2003 future partitions highlighted with yellow has enough data to have relatively healthy compressed  row groups. 2002 and 2001 can be either merged with 2003 or  kept together as a 2002&2001 combined partition to help in queries targeting 2003 with [partition pruning](https://docs.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-partition#benefits-to-queries).*
-[![ Partitioning sample output for "Yearly" examination](./docs/SQLPoolPartitioning/media/YearlyResults.JPG "Figure 3 Partitioning sample output for Yearly examination")](#)
+[![ Partitioning sample output for "Yearly" examination](./media/YearlyResults.JPG "Figure 3 Partitioning sample output for Yearly examination")](#)
 
 ## Step 2: Creating partitioned table script:
 The second most important thing on partitioning is deciding the range direction.
@@ -150,7 +150,7 @@ once we execute above query with
 ```
 for our data we receive below result:
 
-[![Partition DMV query sample output](./docs/SQLPoolPartitioning/media/partitionQueryResult.JPG "Figure 4 Partition DMV query sample output")](#)
+[![Partition DMV query sample output](./media/partitionQueryResult.JPG "Figure 4 Partition DMV query sample output")](#)
 
 According to above result, with below command we will be switching Partition 2 of DeltaProcessedFactInternetSalesLargeP to partition 3 of FactInternetSalesLargeP with purging/truncating the destinations data. If we do not set WITH (TRUNCATE_TARGET = ON) you will have an error since the target partition still contains data.
 
