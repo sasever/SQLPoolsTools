@@ -85,6 +85,7 @@ Below you can see the output of the Quarterly examination query:
 Below you can see the output of the Yearly examination query:
 
 *It can be seen that only 2004,2003 future partitions highlighted with yellow has enough data to have relatively healthy compressed  row groups. 2002 and 2001 can be either merged with 2003 or  kept together as a 2002&2001 combined partition to help in queries targeting 2003 with [partition pruning](https://docs.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-partition#benefits-to-queries).*
+
 [![ Partitioning sample output for "Yearly" examination](./media/YearlyResults.JPG "Figure 3 Partitioning sample output for Yearly examination")](#)
 
 ## Step 2: Creating partitioned table script:
