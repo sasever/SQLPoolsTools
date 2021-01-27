@@ -10,7 +10,6 @@ AS
 /****************************************************************************************************************************** 
     About:  This Stored Procedure uses metrics calculated from Azure Synapse SQL Pools DMVs to build a health check report base table.
     After creating the base table, the proc calculates scores and flags and from them an importance score value to identify most problematic tables.
-
             DMVs used in this SP to create the HealthCheck Report are:
             SYS.OBJECTS
             SYS.SCHEMAS
@@ -29,7 +28,6 @@ AS
             SYS.PDW_COLUMN_DISTRIBUTION_PROPERTIES
             SYS.PARTITIONS
             SYS.INDEXES
-
  the maintenance for this SP will be shared via below github repository, unless another information is shared 
  again in below repository.
    https://github.com/sasever/SQLPoolsTools     
@@ -37,10 +35,8 @@ AS
  Syntax rules:
             Syntax rule 1: SP inputs are named with snakecase (ex:input_variable_name)
             Syntax rule 2: SP local variables are named with camelcase (ex:localVariableName)
-
 SP does not handle the cleanup/housekeeping of the report artifacts.
 you can add a block to clean up all artifacts except the HC_REPORT tables to the procedure, or add an additional clean up methodology.
-
 ******************************************************************************************************************************/
 BEGIN
 
@@ -548,7 +544,6 @@ BEGIN
                     )
             AS	 
             select 
-
             HC.HC_DATE,HC.TOTAL_ROW_COUNT,HC.OBJECT_ID,  HC.SCHEMANAME, HC.TABLENAME
             ,case when DATEDIFF(day,HC.OLDEST_ACTIVE_STAT_DATE,HC.NEWEST_ACTIVE_STAT_DATE)>0 or DATEDIFF(day,HC.NEWEST_ACTIVE_STAT_DATE,getdate())>0  then 1 else 0 end FLAG_STATS_LATE
             --**********,case when isnull(ROW_COUNT_PER_DISTRIBUTION_MAX,0)>0 then 1048576.0/HC.ROW_COUNT_PER_DISTRIBUTION_MAX else -1 end as SCORE_TABLE_CCI_MATURITY
@@ -564,17 +559,17 @@ BEGIN
                                     then 1-(HC.ROWGROUP_TOTAL_MAX_IDEAL/(HC.COMPRESSED_ROWGROUP_COUNT*1.00)) 
                                     else 1  end
                                 else null end,4) AS DECIMAL(8,4)) as SCORE_TABLE_CCI_EFFICIENCY
-            ,CAST(round(case when HC.STORAGETYPE=''CLUSTERED COLUMNSTORE'' AND isnull(HC.COMPRESSED_ROWGROUP_COUNT,0)>0 then (HC.DICTIONARY_SIZE_TRIMMED_RG*1.00)/HC.COMPRESSED_ROWGROUP_COUNT else null end,4) AS DECIMAL(5,4)) as SCORE_TABLE_CCI_DICT_TRIMMIMG
-            ,CAST(round(case when HC.STORAGETYPE=''CLUSTERED COLUMNSTORE'' AND isnull(HC.COMPRESSED_ROWGROUP_COUNT,0)>0 then (HC.BULKLOAD_TRIMMED_RG*1.00)/HC.COMPRESSED_ROWGROUP_COUNT else null end,4) AS DECIMAL(5,4)) as SCORE_TABLE_CCI_BULKLOAD_TRIMMIMG
-            ,CAST(round(case when HC.STORAGETYPE=''CLUSTERED COLUMNSTORE'' AND isnull(HC.COMPRESSED_ROWGROUP_COUNT,0)>0 then (HC.MEMORY_LIMITATION_TRIMMED_RG*1.00)/HC.COMPRESSED_ROWGROUP_COUNT else null end,4) AS DECIMAL(5,4)) as SCORE_TABLE_CCI_MEMORY_TRIMMIMG
+            ,CAST(round(case when HC.STORAGETYPE=''CLUSTERED COLUMNSTORE'' AND isnull(HC.COMPRESSED_ROWGROUP_COUNT,0)>0 then (HC.DICTIONARY_SIZE_TRIMMED_RG*1.00)/HC.COMPRESSED_ROWGROUP_COUNT else null end,4) AS DECIMAL(8,4)) as SCORE_TABLE_CCI_DICT_TRIMMIMG
+            ,CAST(round(case when HC.STORAGETYPE=''CLUSTERED COLUMNSTORE'' AND isnull(HC.COMPRESSED_ROWGROUP_COUNT,0)>0 then (HC.BULKLOAD_TRIMMED_RG*1.00)/HC.COMPRESSED_ROWGROUP_COUNT else null end,4) AS DECIMAL(8,4)) as SCORE_TABLE_CCI_BULKLOAD_TRIMMIMG
+            ,CAST(round(case when HC.STORAGETYPE=''CLUSTERED COLUMNSTORE'' AND isnull(HC.COMPRESSED_ROWGROUP_COUNT,0)>0 then (HC.MEMORY_LIMITATION_TRIMMED_RG*1.00)/HC.COMPRESSED_ROWGROUP_COUNT else null end,4) AS DECIMAL(8,4)) as SCORE_TABLE_CCI_MEMORY_TRIMMIMG
             --********************************************
-            ,CAST(round(case when HC.STORAGETYPE=''CLUSTERED COLUMNSTORE''  then  (1048576 - HC.DICTIONARY_SIZE_TRIMMED_RG_AVG_SIZE)/1048576.0 else null end,4) AS DECIMAL(5,4)) as SCORE_TABLE_CCI_DICT_HEALTH
-            ,CAST(round(case when HC.STORAGETYPE=''CLUSTERED COLUMNSTORE''  then (1048576 - HC.BULKLOAD_TRIMMED_RG_AVG_SIZE)/1048576.0  else null end,4) AS DECIMAL(5,4)) as SCORE_TABLE_CCI_BULKLOAD_HEALTH '+char(10)
+            ,CAST(round(case when HC.STORAGETYPE=''CLUSTERED COLUMNSTORE''  then  (1048576 - HC.DICTIONARY_SIZE_TRIMMED_RG_AVG_SIZE)/1048576.0 else null end,4) AS DECIMAL(8,4)) as SCORE_TABLE_CCI_DICT_HEALTH
+            ,CAST(round(case when HC.STORAGETYPE=''CLUSTERED COLUMNSTORE''  then (1048576 - HC.BULKLOAD_TRIMMED_RG_AVG_SIZE)/1048576.0  else null end,4) AS DECIMAL(8,4)) as SCORE_TABLE_CCI_BULKLOAD_HEALTH '+char(10)
             
-            SET  @queryText2 =  N'            ,CAST(round(case when HC.STORAGETYPE=''CLUSTERED COLUMNSTORE''  then (1048576 - HC.MEMORY_LIMITATION_TRIMMED_RG_AVG_SIZE)/1048576.0  else null end,4) AS DECIMAL(5,4)) as SCORE_TABLE_CCI_MEMORY_HEALTH
-            , CAST(round(case when HC.STORAGETYPE=''CLUSTERED COLUMNSTORE''  then (1048576 - HC.COMPRESSED_ROWGROUP_ROWS_AVG)/1048576.0  else null end,4) AS DECIMAL(5,4)) as SCORE_TABLE_CCI_COMPRESSED_HEALTH
+            SET  @queryText2 =  N'            ,CAST(round(case when HC.STORAGETYPE=''CLUSTERED COLUMNSTORE''  then (1048576 - HC.MEMORY_LIMITATION_TRIMMED_RG_AVG_SIZE)/1048576.0  else null end,4) AS DECIMAL(8,4)) as SCORE_TABLE_CCI_MEMORY_HEALTH
+            , CAST(round(case when HC.STORAGETYPE=''CLUSTERED COLUMNSTORE''  then (1048576 - HC.COMPRESSED_ROWGROUP_ROWS_AVG)/1048576.0  else null end,4) AS DECIMAL(8,4)) as SCORE_TABLE_CCI_COMPRESSED_HEALTH
             --********************************************
-            ,   CAST(round(case when HC.STORAGETYPE=''CLUSTERED COLUMNSTORE'' and  isnull(HC.TOTAL_ROW_COUNT,0)>0  then HC.COMPRESSED_ROWGROUP_ROWS_DELETED*1.00/HC.TOTAL_ROW_COUNT else null end,4) AS DECIMAL(5,4)) as SCORE_DELETE
+            ,   CAST(round(case when HC.STORAGETYPE=''CLUSTERED COLUMNSTORE'' and  isnull(HC.TOTAL_ROW_COUNT,0)>0  then HC.COMPRESSED_ROWGROUP_ROWS_DELETED*1.00/HC.TOTAL_ROW_COUNT else null end,4) AS DECIMAL(8,4)) as SCORE_DELETE
             , HC.ROW_COUNT_PER_DISTRIBUTION_MAX , HC.ROW_COUNT_TOTAL, HC.ROWGROUP_PER_DISTRIBUTION_MAX_IDEAL,HC.ROWGROUP_TOTAL_MAX_IDEAL, HC.NUMROWS
             , HC.STORAGETYPE, HC.DISTRIBUTION_POLICY_DESC, HC.DISTCOL, HC.DISTCOL_DATATYPE
             , HC.DISTR_AVG_ROW_COUNT, HC.DISTR_MEDIAN_ROW_COUNT,HC.DISTR_MAX_AVG_SKEW, HC.DISTR_MAX_MED_SKEW, HC.DISTR_MAX_MIN_SKEW, HC.DISTR_MAX_ROW_COUNT,  HC.DISTR_MIN_ROW_COUNT
@@ -763,7 +758,6 @@ BEGIN
                                                                 when lower(ISNULL(HC.DISTCOL_DATATYPE,''none'')) like ''%date%'' 
                                                                 then ''the distribution column ''+HC.DISTCOL+'' is in type ''+upper(HC.DISTCOL_DATATYPE)+'' which is  not adviced at all. ''+upper(HC.DISTCOL_DATATYPE)+'' type columns cause usually skew and and data layout imbalance.''
                                                                     +''Change the distiribution column to a suitable ID column, which is used in joins reading the table. You can use ''+HC.DISTCOL+'' as partitioning column if data size is suitable and data is received in an  incremental pattern by this column.''
-
                                                                  else ''''
                                                             end
                                                             else ''''
