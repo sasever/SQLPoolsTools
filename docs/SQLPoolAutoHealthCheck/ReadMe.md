@@ -65,8 +65,8 @@ Heath Check store procedure has three execution mods, ***FULL, SCHEMA, TABLE*** 
    * **TABLE** Performs a  Health Check on given Table object
 
 You can control whether you want a new REPORT table to be created for the execution or use an existing one by **report_type** input parameter
-   * **CTAS** Performs a Full Health Check on  all existing Table objects in SYS.TABLES DMV.
-   * **INSERT** Performs a Full Health Check on all existing Table objects in a given SCHEMA
+   * **CTAS** Creating new report table on every execution, It does not clean up the previously created tables on another date.
+   * **INSERT** Inserts to an existing REPORT table on every execution.
 
 You can control whether you want the staging tables created for the report calculation process to be dropped or not by **stage_cleanse_type** input parameter
    * **DROP** Drops the staging tables after the execution 
@@ -90,8 +90,8 @@ DECLARE @op_schema_name varchar(100) = 'dbo'
 
 EXEC dbo.[sp_health_check_report]  @run_type, @report_type, @stage_cleanse_type, @op_schema_name, NULL, NULL
 ```
-When the sp is called with **FULL** run type and **CTAS** report type, all the table artifacts are created with a **_FULL_yyyyMMdd** suffix.
-When the sp is called with **FULL** run type and **INSERT** report type, staging the table artifacts are created with a **_FULL_yyyyMMdd** suffix, final report table, if it does not exists or it is the first execution, will be created as **HC_REPORT**, and next executions with INSERT will insert to this table.
+When the sp is called with **FULL** run type and **CTAS** report type, all the table artifacts are created with a **FULL_yyyyMMdd** suffix.
+When the sp is called with **FULL** run type and **INSERT** report type, staging the table artifacts are created with a **FULL_yyyyMMdd** suffix, final report table, if it does not exists or it is the first execution, will be created as **HC_REPORT**, and next executions with INSERT will insert to this table.
 
 To call the procedure in the **SCHEMA** execution mode:
 
@@ -104,7 +104,7 @@ DECLARE @hc_schema_name varchar(100) = 'my_non_performing_schema'
 
 EXEC dbo.[sp_health_check_report]  @run_type, @report_type, @stage_cleanse_type, @op_schema_name, @hc_schema_name, NULL
 ```
-When the sp is called with **SCHEMA** execution mode, all the table artifacts are created with a **_SCHEMA_yyyyMMdd** suffix.
+When the sp is called with **SCHEMA** execution mode, all the table artifacts are created with a **SCHEMA_yyyyMMdd** suffix.
 
 To call the procedure in the **TABLE** execution mode:
 
