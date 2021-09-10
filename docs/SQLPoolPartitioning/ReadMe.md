@@ -11,7 +11,7 @@ Below figure illustrates how a partitioned table stores its partitions in distri
 
 
 Therefore understanding/estimating how your data distributes by distribution and partition key is the number one step for examining partitioning options.
-You should keep in mid that you will have at least **Number of Partitions** * **60** rowgroups, and each should be around  1 million rows.
+You should keep in mind that you will have at least **Number of Partitions** * **60** rowgroups, and each should be around  1 million rows.
 
 Another important aspect of selecting a proper partition key is knowing/understanding how your data is read or written. If your data is loaded incrementally by a specific key, and also this key is used for read filtering for the table, that columns can be a good candidate for partitioning.
 
@@ -166,6 +166,8 @@ since our high date partition is always empty, we can easily split it for a new 
 ```sql
 ALTER TABLE [dbo].[FactInternetSalesLargeP] SPLIT RANGE ('2005-12-31');
 ```
+## Final words on Azure Synapse SQL Pools Partitioning:
+
 Working with partitions are easy if you keep in mind the basic principles.
 
 1. Try to have number of partitions that will keep your row groups healthy
