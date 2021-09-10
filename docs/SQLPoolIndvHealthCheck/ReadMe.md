@@ -421,4 +421,4 @@ from STATS
 group by  OBJECT_ID,[schemaname],[tablename]
 ```
 
-These checks can be used all together or individually to examine performance problems. An automated and merged version is provided [here](docs/SQLPoolAutoHealthCheck/ReadMe.md) in this repository.
+These checks can be used all together or individually to examine performance problems. An automated and merged version is provided [here](../SQLPoolAutoHealthCheck/ReadMe.md) in this repository.
