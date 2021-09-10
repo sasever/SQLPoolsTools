@@ -6,7 +6,7 @@ Performance tuning on any data processing platform may easily become rearranging
 * You may have tables in very bad condition, but does not get frequently read or written and has no effect in processing timelines
 * You may have tables in very bad condition, and does not get frequently read or written but becomes a bottleneck for multiple subsequent processes.
 
-The effect of which one you will put an effort will obviously different.
+The effect of which one you will put an effort will obviously be different.
 
 ## How to approach Performance Tuning on Azure Synapse SQL Pools.
 If you have a poor performing read query or poor performing write operation on Azure Synapse SQL Pools, there might be a few different reasons resulting it. But solutions usually are hidden in how healthily your tables are placed in the system and how you are reading/writing these tables.
