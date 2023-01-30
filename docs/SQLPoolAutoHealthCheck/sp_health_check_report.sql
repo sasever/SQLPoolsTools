@@ -249,7 +249,7 @@ BEGIN
                 INNER JOIN sys.schemas AS s ON t.schema_id = s.schema_id
                 INNER JOIN sys.pdw_table_distribution_properties AS tdp ON t.object_id = tdp.object_id
                 INNER JOIN sys.columns AS c ON t.object_id = c.object_id
-                INNER join sys.types ty ON C.system_type_id = ty.system_type_id
+                INNER join sys.types ty ON c.system_type_id = ty.system_type_id
                 INNER JOIN sys.pdw_column_distribution_properties AS cdp ON c.object_id = cdp.object_id
                 AND c.column_id = cdp.column_id --note rowcount from sys.partitions assumes PDW stats are accurate
             --to get stats from nodes use pdw_nodes_partitions instead
