@@ -33,6 +33,7 @@ To perform the analysis below Dynamic Management or Catalog Views (DMVs) from Az
 * [SYS.PDW_TABLE_DISTRIBUTION_PROPERTIES](https://docs.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-pdw-table-distribution-properties-transact-sql?view=aps-pdw-2016-au7)
 * [SYS.PDW_COLUMN_DISTRIBUTION_PROPERTIES](https://docs.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-pdw-column-distribution-properties-transact-sql?view=aps-pdw-2016-au7)
 * [SYS.PARTITIONS](https://docs.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-partitions-transact-sql?view=sql-server-ver15)
+* [SYS.DM_PDW_NODES_DB_PARTITION_STATS](https://learn.microsoft.com/en-us/sql/relational-databases/system-dynamic-management-views/sys-dm-db-partition-stats-transact-sql?toc=%2Fazure%2Fsynapse-analytics%2Fsql-data-warehouse%2Ftoc.json&bc=%2Fazure%2Fsynapse-analytics%2Fsql-data-warehouse%2Fbreadcrumb%2Ftoc.json&view=azure-sqldw-latest&preserve-view=true) 
 * [SYS.INDEXES](https://docs.microsoft.com/en-us/sql/relational-databases/system-catalog-views/sys-indexes-transact-sql?view=sql-server-ver15)
 
 ## Health Check Artifacts
@@ -44,7 +45,8 @@ To perform the analysis below Dynamic Management or Catalog Views (DMVs) from Az
 1. **HC_COLUMN_STORE_DENSITY :** Contains general statistics on the types and numbers of row groups and row counts of the CLUSTERED COLUMNSTORE INDEX tables.
 1. **HC_GENERAL_ROWGROUP_HEALTH :** Contains trimming metrics of the CLUSTERED COLUMNSTORE INDEX tables.
 1. **HC_DISTRIBUTION_LAYOUT :** Contains distribution policy related information adn table specs like partitioning, being external, index/storage type and number of rows
-1. **HC_DISTRIBUTION_SKEW_INFO:** Contains MAX to MIN/AVG/MEDIAN number of row containing distribution's skew information
+1. **HC_DISTRIBUTION_SKEW_INFO:** Contains MAX to MIN/AVG/MEDIAN number of all distribution's skew information for tables
+1. **HC_DISTRIBUTION_PARTITIONED_SKEW_INFO:** Contains MAX to MIN/AVG/MEDIAN number of all distribution's skew information for partitioned tables
 1. **HC_TABLE_STATS_INFO :** Contains info around statistics age and count
 1. **HC_BASE :** Merged version of above tables on object_id
 1. **HC_SCORES_FLAGS :** calculates Scores and Flags to identify the health
