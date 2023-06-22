@@ -435,7 +435,100 @@ BEGIN
 		--/**/PRINT(@queryText2)
         EXEC (@queryText + @queryText2) 
         --/**/PRINT(char(10)+'*********************************************************************************'+char(10))
-        
+
+	    SET  @queryTargetTable = @op_schema_name+'.HC_DISTRIBUTION_PARTITIONED_SKEW_INFO'+@tableRunTag
+		SET  @queryText =
+            N'IF OBJECT_ID('''+@queryTargetTable+''') IS NOT NULL
+                DROP  TABLE '+@queryTargetTable+'
+            CREATE TABLE '+@queryTargetTable+'
+            with(distribution=hash(object_id),
+                heap)
+            AS
+		    with partsizedata as (
+                select
+                    p.object_id  tables_object_id
+                    ,ps.object_id
+                    ,ps.distribution_id
+                    ,ps.row_count
+                    ,ps.partition_number
+                    ,PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY ps.row_count)  OVER (PARTITION BY ps.object_id)  median_num_rows_for_partitions
+                from  sys.dm_pdw_nodes_db_partition_stats ps
+                left join sys.partitions p on ps.partition_id=p.partition_id
+                where 1=1
+            ),
+            partsizedistrosummary as (
+                select 
+                    object_id
+                    ,max(tables_object_id) tables_object_id
+                    ,distribution_id
+                    ,median_num_rows_for_partitions
+                    ,max(partition_number) table_partition_count
+                    ,sum(a.row_count) total_rows_on_distro
+                    ,max(a.row_count) max_num_rows_for_partitions_per_distro
+                    ,avg(a.row_count) avg_num_rows_for_partitions_per_distro
+                    ,min(a.row_count) min_num_rows_for_partitions_per_distro
+                from partsizedata  a
+                group by object_id,distribution_id,median_num_rows_for_partitions 
+            ),
+            partsizesummary as(
+                select 
+                    object_id
+                    ,max(tables_object_id) tables_object_id
+                    ,max(table_partition_count) table_partition_count
+                    ,max(max_num_rows_for_partitions_per_distro) max_num_rows_for_partitions_in_a_distro
+                    ,min(min_num_rows_for_partitions_per_distro) min_num_rows_for_partitions_in_a_distro
+                    ,avg(avg_num_rows_for_partitions_per_distro) avg_num_rows_for_partitions_in_a_distro
+                    ,max(median_num_rows_for_partitions) median_num_rows_for_partitions_overall
+                from partsizedistrosummary
+                where table_partition_count>1
+                group by object_id
+            ),
+            partitionedtablemedian as(
+                select
+                    distinct
+                    object_id
+                    ,PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY total_rows_on_distro)  OVER (PARTITION BY object_id)  median_num_rows_for_distro
+                from partsizedistrosummary
+                where table_partition_count>1
+            ),'+char(10)
+
+        SET  @queryText2 =   N'                partitionedtableotheraggr as(
+                select
+                    object_id
+                    ,max(tables_object_id) tables_object_id
+                    ,MAX(total_rows_on_distro) max_num_rows_for_distro
+                    ,AVG(total_rows_on_distro) avg_num_rows_for_distro
+                    ,MIN(total_rows_on_distro) min_num_rows_for_distro
+                from partsizedistrosummary
+                where table_partition_count>1
+            group by object_id
+            ),
+            partitionedtableskew as(
+                select 
+                    oa.tables_object_id
+                    ,case when isnull(max_num_rows_for_distro,0)>0 then (max_num_rows_for_distro * 1.00 - min_num_rows_for_distro * 1.00) /max_num_rows_for_distro * 1.00  else -1 end AS DISTR_max_min_skew
+                    ,case when isnull(max_num_rows_for_distro,0)>0 then(max_num_rows_for_distro * 1.00 - avg_num_rows_for_distro * 1.00) / max_num_rows_for_distro * 1.00  else -1 end AS DISTR_max_avg_skew
+                    ,case when isnull(max_num_rows_for_distro,0)>0 then(max_num_rows_for_distro * 1.00 - median_num_rows_for_distro * 1.00) / max_num_rows_for_distro * 1.00  else -1 end AS DISTR_max_med_skew
+                from partitionedtableotheraggr oa inner join partitionedtablemedian m on oa.object_id=m.object_id
+            )
+            select
+                    pts.tables_object_id as object_id
+                    ,pts.DISTR_max_min_skew
+                    ,pts.DISTR_max_avg_skew
+                    ,pts.DISTR_max_med_skew
+                    ,pss.table_partition_count
+                    ,pss.max_num_rows_for_partitions_in_a_distro
+                    ,pss.min_num_rows_for_partitions_in_a_distro
+                    ,pss.avg_num_rows_for_partitions_in_a_distro
+                    ,pss.median_num_rows_for_partitions_overall
+                from partitionedtableskew pts inner join partsizesummary pss on pts.tables_object_id=pss.tables_object_id'
+
+        --/**/PRINT(@queryText)  
+		--/**/PRINT(@queryText2)
+        EXEC (@queryText + @queryText2) 
+        --/**/PRINT(char(10)+'*********************************************************************************'+char(10))
+
+
         SET  @queryTargetTable = @op_schema_name+'.HC_TABLE_STATS_INFO'+@tableRunTag
         SET  @queryText =
             N'IF OBJECT_ID('''+@queryTargetTable+''') IS NOT NULL
@@ -507,21 +600,30 @@ BEGIN
         , GRH.DICTIONARY_SIZE_TRIMMED_RG_AVG_SIZE, GRH.BULKLOAD_TRIMMED_RG, GRH.BULKLOAD_TRIMMED_RG_MAX_SIZE
         , GRH.BULKLOAD_TRIMMED_RG_MIN_SIZE, GRH.BULKLOAD_TRIMMED_RG_AVG_SIZE, GRH.MEMORY_LIMITATION_TRIMMED_RG
         , GRH.MEMORY_LIMITATION_TRIMMED_RG_MAX_SIZE, GRH.MEMORY_LIMITATION_TRIMMED_RG_MIN_SIZE, GRH.MEMORY_LIMITATION_TRIMMED_RG_AVG_SIZE
-        , DL.IS_EXTERNAL, DL.DISTRIBUTION_POLICY_DESC, DL.DISTCOL, DL.DISTCOL_DATATYPE, DL.STORAGETYPE, CASE WHEN ISNULL(CSD.TABLE_PARTITION_COUNT,1)>1 and DL.ISPARTITIONED=''YES'' then ''YES'' ELSE ''NO'' END as ISPARTITIONED, DL.NUMPARTITIONS NUM_SYSTEM_PARTITIONS, DL.NUMROWS
-        , DSI.DISTR_MAX_ROW_COUNT, DSI.DISTR_MIN_ROW_COUNT, DSI.DISTR_AVG_ROW_COUNT, DSI.DISTR_MEDIAN_ROW_COUNT, DSI.DISTR_MAX_MIN_SKEW, DSI.DISTR_MAX_AVG_SKEW
-        , DSI.DISTR_MAX_MED_SKEW
+        , DL.IS_EXTERNAL, DL.DISTRIBUTION_POLICY_DESC, DL.DISTCOL, DL.DISTCOL_DATATYPE, DL.STORAGETYPE
+        , CASE WHEN ISNULL(CSD.TABLE_PARTITION_COUNT,1)>1 and DL.ISPARTITIONED=''YES'' then ''YES'' ELSE ''NO'' END as ISPARTITIONED
+        , DL.NUMPARTITIONS NUM_SYSTEM_PARTITIONS, DPSI.MAX_NUM_ROWS_FOR_PARTITIONS_IN_A_DISTRO, DPSI.MIN_NUM_ROWS_FOR_PARTITIONS_IN_A_DISTRO
+        , DPSI.AVG_NUM_ROWS_FOR_PARTITIONS_IN_A_DISTRO, DPSI.MEDIAN_NUM_ROWS_FOR_PARTITIONS_OVERALL
+        , DL.NUMROWS
+        , DSI.DISTR_MAX_ROW_COUNT, DSI.DISTR_MIN_ROW_COUNT, DSI.DISTR_AVG_ROW_COUNT, DSI.DISTR_MEDIAN_ROW_COUNT
+        , CASE WHEN ISNULL(CSD.TABLE_PARTITION_COUNT,1)>1 and DL.ISPARTITIONED=''YES'' then DPSI.DISTR_MAX_MIN_SKEW ELSE DSI.DISTR_MAX_MIN_SKEW  END as DISTR_MAX_MIN_SKEW 
+        , CASE WHEN ISNULL(CSD.TABLE_PARTITION_COUNT,1)>1 and DL.ISPARTITIONED=''YES'' then DPSI.DISTR_MAX_AVG_SKEW ELSE DSI.DISTR_MAX_AVG_SKEW  END as DISTR_MAX_AVG_SKEW
+        , CASE WHEN ISNULL(CSD.TABLE_PARTITION_COUNT,1)>1 and DL.ISPARTITIONED=''YES'' then DPSI.DISTR_MAX_MED_SKEW ELSE DSI.DISTR_MAX_MED_SKEW  END as DISTR_MAX_MED_SKEW
         , TSI.NEWEST_ACTIVE_STAT_DATE, TSI.OLDEST_ACTIVE_STAT_DATE, TSI.NUMBER_OF_STATS
-        , TSI.NUM_OF_USERCREATED_STATS, TSI.NUM_OF_FILTERED_STATS
-        FROM  '+@op_schema_name+'.HC_TABLE_PATTERN'+@tableRunTag+' TP 
+        , TSI.NUM_OF_USERCREATED_STATS, TSI.NUM_OF_FILTERED_STATS'+char(10)
+
+        SET  @queryText2 =   N'        FROM  '+@op_schema_name+'.HC_TABLE_PATTERN'+@tableRunTag+' TP 
             LEFT OUTER JOIN '+@op_schema_name+'.HC_COLUMN_STORE_DENSITY'+@tableRunTag+' CSD  ON TP.OBJECT_ID = CSD.OBJECT_ID
             LEFT OUTER JOIN '+@op_schema_name+'.HC_GENERAL_ROWGROUP_HEALTH'+@tableRunTag+' GRH ON TP.OBJECT_ID = GRH.OBJECT_ID
             LEFT OUTER JOIN '+@op_schema_name+'.HC_DISTRIBUTION_LAYOUT'+@tableRunTag+' DL  ON TP.OBJECT_ID = DL.OBJECT_ID
             LEFT OUTER JOIN '+@op_schema_name+'.HC_DISTRIBUTION_SKEW_INFO'+@tableRunTag+' DSI  ON TP.OBJECT_ID = DSI.OBJECT_ID
-            LEFT OUTER JOIN '+@op_schema_name+'.HC_TABLE_STATS_INFO'+@tableRunTag+' TSI ON TP.OBJECT_ID = TSI.OBJECT_ID';
+            LEFT OUTER JOIN '+@op_schema_name+'.HC_TABLE_STATS_INFO'+@tableRunTag+' TSI ON TP.OBJECT_ID = TSI.OBJECT_ID
+            LEFT OUTER JOIN '+@op_schema_name+'.HC_DISTRIBUTION_PARTITIONED_SKEW_INFO'+@tableRunTag+' DPSI ON TP.OBJECT_ID = DPSI.OBJECT_ID';
 
 
-        --/**/PRINT(@queryText)  
-        EXEC (@queryText) 
+        /*  PRINT(@queryText)  
+		    PRINT(@queryText2) */
+        EXEC (@queryText + @queryText2) 
         --/**/PRINT(char(10)+'*********************************************************************************'+char(10))
         
         SET  @queryTargetTable = @op_schema_name+'.HC_SCORES_FLAGS'+@tableRunTag
@@ -583,12 +685,13 @@ BEGIN
             , HC.NUM_OF_BIG_STRING_COLUMNS, HC.AVG_LENGTH_OF_BIG_STRING_COLUMNS, HC.NUM_OF_OTHER_BIG_COLUMNS, HC.NUM_OF_TOTAL_COLUMNS, HC.NUM_OF_DATE_COLUMNS
             , HC.INVISIBLE_ROWGROUP_COUNT, HC.INVISIBLE_ROWGROUP_ROWS, HC.INVISIBLE_ROWGROUP_ROWS_AVG, HC.INVISIBLE_ROWGROUP_ROWS_MAX, HC.INVISIBLE_ROWGROUP_ROWS_MIN
             , HC.IS_EXTERNAL, HC.ISPARTITIONED, HC.NUM_SYSTEM_PARTITIONS, HC.NUM_USER_PARTITIONS
+            , HC.MAX_NUM_ROWS_FOR_PARTITIONS_IN_A_DISTRO, HC.MIN_NUM_ROWS_FOR_PARTITIONS_IN_A_DISTRO , HC.AVG_NUM_ROWS_FOR_PARTITIONS_IN_A_DISTRO, HC.MEDIAN_NUM_ROWS_FOR_PARTITIONS_OVERALL
             , HC.NEWEST_ACTIVE_STAT_DATE,  HC.OLDEST_ACTIVE_STAT_DATE, HC.NUM_OF_FILTERED_STATS, HC.NUM_OF_USERCREATED_STATS, HC.NUMBER_OF_STATS  
             from '+@op_schema_name+'.HC_BASE'+@tableRunTag+' HC'
 
 
-        --/**/PRINT(@queryText)  
-		--/**/PRINT(@queryText2)
+        /*  PRINT(@queryText)  
+		   PRINT(@queryText2) */
         EXEC (@queryText + @queryText2) 
         --/**/PRINT(char(10)+'*********************************************************************************'+char(10))
         
@@ -633,17 +736,20 @@ BEGIN
             , HC.CLOSED_ROWGROUP_COUNT, HC.CLOSED_ROWGROUP_ROWS, HC.CLOSED_ROWGROUP_ROWS_AVG, HC.CLOSED_ROWGROUP_ROWS_MAX, HC.CLOSED_ROWGROUP_ROWS_MIN
             , HC.COMPRESSED_ROWGROUP_COUNT, HC.COMPRESSED_ROWGROUP_ROWS, HC.COMPRESSED_ROWGROUP_ROWS_AVG, HC.COMPRESSED_ROWGROUP_ROWS_DELETED, HC.COMPRESSED_ROWGROUP_ROWS_MAX, HC.COMPRESSED_ROWGROUP_ROWS_MIN
             , HC.MEMORY_LIMITATION_TRIMMED_RG, HC.MEMORY_LIMITATION_TRIMMED_RG_AVG_SIZE, HC.MEMORY_LIMITATION_TRIMMED_RG_MAX_SIZE, HC.MEMORY_LIMITATION_TRIMMED_RG_MIN_SIZE
-            , HC.BULKLOAD_TRIMMED_RG, HC.BULKLOAD_TRIMMED_RG_AVG_SIZE, HC.BULKLOAD_TRIMMED_RG_MAX_SIZE, HC.BULKLOAD_TRIMMED_RG_MIN_SIZE
-            , HC.DICTIONARY_SIZE_TRIMMED_RG, HC.DICTIONARY_SIZE_TRIMMED_RG_AVG_SIZE, HC.DICTIONARY_SIZE_TRIMMED_RG_MAX_SIZE, HC.DICTIONARY_SIZE_TRIMMED_RG_MIN_SIZE
+            , HC.BULKLOAD_TRIMMED_RG, HC.BULKLOAD_TRIMMED_RG_AVG_SIZE, HC.BULKLOAD_TRIMMED_RG_MAX_SIZE, HC.BULKLOAD_TRIMMED_RG_MIN_SIZE'+char(10)
+            
+            SET  @queryText2 =  N'            , HC.DICTIONARY_SIZE_TRIMMED_RG, HC.DICTIONARY_SIZE_TRIMMED_RG_AVG_SIZE, HC.DICTIONARY_SIZE_TRIMMED_RG_MAX_SIZE, HC.DICTIONARY_SIZE_TRIMMED_RG_MIN_SIZE
             , HC.NUM_OF_BIG_STRING_COLUMNS, HC.AVG_LENGTH_OF_BIG_STRING_COLUMNS, HC.NUM_OF_OTHER_BIG_COLUMNS, HC.NUM_OF_TOTAL_COLUMNS, HC.NUM_OF_DATE_COLUMNS 
             , HC.INVISIBLE_ROWGROUP_COUNT, HC.INVISIBLE_ROWGROUP_ROWS, HC.INVISIBLE_ROWGROUP_ROWS_AVG, HC.INVISIBLE_ROWGROUP_ROWS_MAX, HC.INVISIBLE_ROWGROUP_ROWS_MIN
-            , HC.IS_EXTERNAL,  HC.ISPARTITIONED, HC.NUM_SYSTEM_PARTITIONS, HC.NUM_USER_PARTITIONS,HC.NUMROWS
+            , HC.IS_EXTERNAL,  HC.ISPARTITIONED, HC.NUM_SYSTEM_PARTITIONS, HC.NUM_USER_PARTITIONS, HC.MAX_NUM_ROWS_FOR_PARTITIONS_IN_A_DISTRO, HC.MIN_NUM_ROWS_FOR_PARTITIONS_IN_A_DISTRO
+            , HC.AVG_NUM_ROWS_FOR_PARTITIONS_IN_A_DISTRO, HC.MEDIAN_NUM_ROWS_FOR_PARTITIONS_OVERALL, HC.NUMROWS
             , HC.NEWEST_ACTIVE_STAT_DATE,  HC.OLDEST_ACTIVE_STAT_DATE, HC.NUM_OF_FILTERED_STATS, HC.NUM_OF_USERCREATED_STATS, HC.NUMBER_OF_STATS
             from '+@op_schema_name+'.HC_SCORES_FLAGS'+@tableRunTag+'  as HC '
 
 
-        --/**/PRINT(@queryText)  
-        EXEC (@queryText) 
+        /*  PRINT(@queryText)  
+		    PRINT(@queryText2) */
+        EXEC (@queryText + @queryText2) 
         --/**/PRINT(char(10)+'*********************************************************************************'+char(10))
         
        
@@ -845,16 +951,17 @@ BEGIN
             , HC.DICTIONARY_SIZE_TRIMMED_RG, HC.DICTIONARY_SIZE_TRIMMED_RG_AVG_SIZE, HC.DICTIONARY_SIZE_TRIMMED_RG_MAX_SIZE, HC.DICTIONARY_SIZE_TRIMMED_RG_MIN_SIZE
             , HC.NUM_OF_BIG_STRING_COLUMNS, HC.AVG_LENGTH_OF_BIG_STRING_COLUMNS, HC.NUM_OF_OTHER_BIG_COLUMNS, HC.NUM_OF_TOTAL_COLUMNS , HC.NUM_OF_DATE_COLUMNS
             , HC.INVISIBLE_ROWGROUP_COUNT, HC.INVISIBLE_ROWGROUP_ROWS, HC.INVISIBLE_ROWGROUP_ROWS_AVG, HC.INVISIBLE_ROWGROUP_ROWS_MAX, HC.INVISIBLE_ROWGROUP_ROWS_MIN
-            , HC.IS_EXTERNAL, HC.ISPARTITIONED, HC.NUM_SYSTEM_PARTITIONS, ISNULL(HC.NUM_USER_PARTITIONS,1) as NUM_USER_PARTITIONS, HC.NUMROWS
+            , HC.IS_EXTERNAL, HC.ISPARTITIONED, HC.NUM_SYSTEM_PARTITIONS, ISNULL(HC.NUM_USER_PARTITIONS,1) as NUM_USER_PARTITIONS, HC.MAX_NUM_ROWS_FOR_PARTITIONS_IN_A_DISTRO, HC.MIN_NUM_ROWS_FOR_PARTITIONS_IN_A_DISTRO
+            , HC.AVG_NUM_ROWS_FOR_PARTITIONS_IN_A_DISTRO, HC.MEDIAN_NUM_ROWS_FOR_PARTITIONS_OVERALL, HC.NUMROWS
             , HC.NEWEST_ACTIVE_STAT_DATE,  HC.OLDEST_ACTIVE_STAT_DATE, HC.NUM_OF_FILTERED_STATS, HC.NUM_OF_USERCREATED_STATS, HC.NUMBER_OF_STATS
             from '+@op_schema_name+'.HC_WITH_IMPORTANCE'+@tableRunTag+'  as HC '
 
-        --/**/PRINT(@queryText)  
-		--/**/PRINT(@queryText2)  
-		--/**/PRINT(@queryText3)
-		--/**/PRINT(@queryText4)  
-        --/**/PRINT(@queryText5)
-        --/**/PRINT(@queryText6)
+        /*  PRINT(@queryText)  
+		    PRINT(@queryText2)  
+		    PRINT(@queryText3)
+		    PRINT(@queryText4)  
+            PRINT(@queryText5)
+            PRINT(@queryText6) */
         EXEC (@queryText + @queryText2 + @queryText3 + @queryText4 + @queryText5 + @queryText6) 
 --**********************************************************************
 -- Below code drops staging tables.
@@ -887,6 +994,12 @@ BEGIN
             EXEC (@queryText)
             ---------------------
             SET  @queryTargetTable = @op_schema_name+'.HC_DISTRIBUTION_SKEW_INFO'+@tableRunTag
+            SET  @queryText =
+                N'IF OBJECT_ID('''+@queryTargetTable+''') IS NOT NULL
+                    DROP  TABLE '+@queryTargetTable
+            EXEC (@queryText)
+            ---------------------
+            SET  @queryTargetTable = @op_schema_name+'.HC_DISTRIBUTION_PARTITIONED_SKEW_INFO'+@tableRunTag
             SET  @queryText =
                 N'IF OBJECT_ID('''+@queryTargetTable+''') IS NOT NULL
                     DROP  TABLE '+@queryTargetTable
